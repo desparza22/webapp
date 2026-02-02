@@ -1,0 +1,13 @@
+.App {
+  width: 800px;
+}
+
+.buttons {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+button {
+  height: 50px;
+  flex: 1;
+}

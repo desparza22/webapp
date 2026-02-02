@@ -2,7 +2,9 @@ from typing import Annotated
 import random
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import Response, HTMLResponse
+from fastapi.responses import Response
+from fastapi.staticfiles import StaticFiles
+
 
 app = FastAPI()
 
@@ -40,30 +42,20 @@ class Connections:
         while not name or name in self.connections:
             name = random_name()
 
-        for connection in self.connections.values():
-            await connection.send_text(f"{name} joined")
-        
-        other_names = list(self.connections.keys())
-        others = "an empty chat" if len(other_names) == 0 else ", ".join(other_names)
         self.connections[name] = websocket
-        await websocket.send_text(f"You're connected as {name}. You joined {others}")
         return name 
         
     async def reply(self, name, data):
-        await self.connections[name].send_text(f"You sent: {data}")
-        for other_name, connection in self.connections.items():
-            if other_name != name:
-                await connection.send_text(f"{name} sent: {data}")
+        for name, connection in self.connections.items():
+            await connection.send_text(f"{name} {data}")
                 
     async def disconnect(self, name):
         del self.connections[name]
-        for connection in self.connections.values():
-            await connection.send_text(f"{name} left")
             
 manager = Connections()
         
 
-@app.websocket("/ws")
+@app.websocket("/draw-ws")
 async def do_websockets(websocket : WebSocket):
     name = await manager.connect(websocket)
     try:
@@ -74,41 +66,4 @@ async def do_websockets(websocket : WebSocket):
         await manager.disconnect(name)
         
         
-        
-html = """
-<!DOCTYPE html>
-<html>
-    <head>
-        <title>Chat</title>
-    </head>
-    <body>
-        <h1>Chat with friends</h1>
-        <form action="" onsubmit="sendMessage(event)">
-            <input type="text" id="messageText" autocomplete="off"/>
-            <button>Send</button>
-        </form>
-        <ul id='messages'>
-        </ul>
-        <script>
-            var ws = new WebSocket("wss://corymblike-positivistically-nevada.ngrok-free.dev/ws");
-            ws.onmessage = function(event) {
-                var messages = document.getElementById('messages')
-                var message = document.createElement('li')
-                var content = document.createTextNode(event.data)
-                message.appendChild(content)
-                messages.appendChild(message)
-            };
-            function sendMessage(event) {
-                var input = document.getElementById("messageText")
-                ws.send(input.value)
-                input.value = ''
-                event.preventDefault()
-            }
-        </script>
-    </body>
-</html>
-"""
-
-@app.get("/")
-def root():
-    return HTMLResponse(html)
+app.mount("/", StaticFiles(directory="ui/dist", html=True), name="ui")
