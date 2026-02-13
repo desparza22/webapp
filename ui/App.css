@@ -2,6 +2,10 @@
   width: 800px;
 }
 
+.Drawing {
+  cursor: none;
+}
+
 .buttons {
   display: flex;
   justify-content: space-between;

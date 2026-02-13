@@ -1,3 +1,4 @@
+import asyncio
 from typing import Annotated
 import random
 
@@ -44,10 +45,15 @@ class Connections:
 
         self.connections[name] = websocket
         return name 
+
+    async def send_to(self, connection, message):
+        #await asyncio.sleep(0.02)
+        await connection.send_text(message)
+        
         
     async def reply(self, name, data):
-        for name, connection in self.connections.items():
-            await connection.send_text(f"{name} {data}")
+        for connection in self.connections.values():
+            await self.send_to(connection, f"{name} {data}")
                 
     async def disconnect(self, name):
         del self.connections[name]
