@@ -58,19 +58,19 @@ function Drawing({frames, rerender_trigger}) {
   );
 }
 
-function Animation({frames}) {
+function Animation({frames, effective_length}) {
   const [frame, setFrame] = useState(0);
 
   useEffect(() => {
     const id = setInterval(() => {
-      setFrame(frame => frame + 1);
+      setFrame(frame => (frame + 1) % effective_length);
     }, 1000 / 12);
 
     return () => clearInterval(id);
   })
 
-  const local_paths = frames.getPoints(frame % frames.frames.length, 0);
-  const synced_paths = frames.getPoints(frame % frames.frames.length, 1);
+  let local_paths = frames.getPoints(frame);
+  let synced_paths = frames.getPoints(frame);
 
   return (
     <>
@@ -87,7 +87,7 @@ function Animation({frames}) {
   )
 }
 
-function Mouse({mouse_position, rerender_trigger}) {
+function DrawMouse({mouse_position, rerender_trigger}) {
   return (
       <>      
       {
@@ -187,6 +187,19 @@ class Frames {
     return paths.getPathPoints();
   }
 
+  effectiveLength() {
+    let effective_length = this.frames.length;
+    while (effective_length > 0) {
+      const local_points = this.getPoints(effective_length - 1, 0);
+      const synced_points = this.getPoints(effective_length - 1, 1);
+      if (local_points.length != 0 || synced_points != 0) {
+        break;
+      }
+      effective_length -= 1;
+    }
+    return effective_length;
+  }
+
   getDisplayedPaths(local_or_synced) {
     const displayed_paths = [];
     for (let frame_index = this.display_index - 1; frame_index <= this.display_index + 1; frame_index += 1) {
@@ -231,6 +244,23 @@ class Frames {
   }
 }
 
+class Mouse {
+  constructor() {
+    this.positions = new Map();
+  }
+
+  getPosition(name) {
+    if (!this.positions.has(name)) {
+      this.positions.set(name, null);
+    }
+    return this.positions.get(name);
+  }
+
+  setPosition(name, position) {
+    this.positions.set(name, position);
+  }
+}
+
 export default function App() {
   const eventSocket = useRef(null);
 
@@ -238,7 +268,7 @@ export default function App() {
   const syncedPathsIdx = 1;
 
   const frames = useRef(new Frames());
-  const mouse_position = useRef(null);
+  const mouse_positions = useRef(new Mouse());
 
   const [rerenderDrawingTrigger, setRerenderDrawingTrigger] = useState(0);
   const [rerenderMouseTrigger, setRerenderMouseTrigger] = useState(0);
@@ -273,13 +303,14 @@ export default function App() {
   }
 
   function mouseDown(name, frame_index, local_or_synced) {
-    if (mouse_position.current !== null && frames.current.mouseDown(name, mouse_position.current, frame_index, local_or_synced)) {
+    const mouse_position = mouse_positions.current.getPosition(name);
+    if (mouse_position !== null && frames.current.mouseDown(name, mouse_position, frame_index, local_or_synced)) {
       triggerDrawingRerender();
     }
   }
 
   function mouseMove(name, point, frame_index, local_or_synced) {
-    mouse_position.current = point;
+    mouse_positions.current.setPosition(name, point);
     triggerMouseRerender();
 
     if (frames.current.mouseMove(name, point, frame_index, local_or_synced)) {
@@ -428,7 +459,7 @@ export default function App() {
         <>
          <svg width={800} height={600} style={{ border: "1px solid black" }} className="Drawing">
           <Drawing frames={frames.current} rerender_trigger={rerenderDrawingTrigger} />
-          <Mouse mouse_position={mouse_position.current} rerender_trigger={rerenderMouseTrigger} />
+          <DrawMouse mouse_position={mouse_positions.current.getPosition("local")} rerender_trigger={rerenderMouseTrigger} />
          </svg>
          <svg
            width={800}
@@ -447,7 +478,7 @@ export default function App() {
         animationRunning &&
         <>
          <svg width={800} height={600} style={{ border: "1px solid black" }} className="Drawing">
-          <Animation frames={frames.current} />
+          <Animation frames={frames.current} effective_length={frames.current.effectiveLength()} />
          </svg>
         </>
       }

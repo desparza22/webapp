@@ -12,7 +12,8 @@ app = FastAPI()
 
 with open("ravens.webp", "rb") as favicon_reader:
     favicon = favicon_reader.read()
-        
+
+history_for_replay_file = "history-for-replay.txt"
 
 @app.get("/favicon.ico",
          responses = {
@@ -39,6 +40,12 @@ class Connections:
         
     async def connect(self, websocket:WebSocket):
         await websocket.accept()
+        with open(history_for_replay_file, "a+") as history_for_replay:
+            history_for_replay.seek(0)
+            for line in history_for_replay:
+                line = line.rstrip("\n")
+                await self.send_to(websocket, line)
+                
         name = None
         while not name or name in self.connections:
             name = random_name()
@@ -47,13 +54,16 @@ class Connections:
         return name 
 
     async def send_to(self, connection, message):
-        #await asyncio.sleep(0.02)
         await connection.send_text(message)
         
         
     async def reply(self, name, data):
+        line = f"{name} {data}"
+        with open(history_for_replay_file, "a+") as history_for_replay:
+            history_for_replay.write(f"{line}\n")
+
         for connection in self.connections.values():
-            await self.send_to(connection, f"{name} {data}")
+            await self.send_to(connection, line)
                 
     async def disconnect(self, name):
         del self.connections[name]
